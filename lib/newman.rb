@@ -5,6 +5,7 @@ require "fileutils"
 require "mail"
 require "tilt"
 
+require_relative "newman/bounce_email"
 require_relative "newman/server"
 require_relative "newman/commands"
 require_relative "newman/application"

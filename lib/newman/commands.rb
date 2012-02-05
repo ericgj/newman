@@ -43,6 +43,34 @@ module Newman
       callbacks << { :matcher => matcher, :callback => callback }
     end
 
+    def bounced(matcher_type=nil, value=nil, &callback)
+      
+      matcher = case matcher_type
+      when nil
+        lambda do
+          bounce_request = ::BounceEmail::Mail.new(request)
+          bounce_request.bounced?
+        end
+      when :type
+        lambda do
+          bounce_request = ::BounceEmail::Mail.new(request)
+          bounce_request.bounced? && bounce_request.type == value
+        end
+      when :code
+        lambda do
+          bounce_request = ::BounceEmail::Mail.new(request)
+          bounce_request.bounced? && bounce_request.code == value
+        end
+      when :reason, :match
+        lambda do
+          bounce_request = ::BounceEmail::Mail.new(request)
+          bounce_request.bounced? && bounce_request.reason.match(/#{value}/)
+        end
+      end
+      
+      callbacks << { :matcher => matcher, :callback => callback }
+    end
+    
     def default(&callback)
       self.default_callback = callback
     end
@@ -68,5 +96,6 @@ module Newman
       pattern.gsub('.','\.')
              .gsub(/\{(.*?)\}/) { |m| "(?<#{$1}>#{matchers[$1]})" } 
     end
+        
   end
 end
