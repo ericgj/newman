@@ -23,49 +23,49 @@ module Newman
 
     attr_accessor :settings, :mailer
 
-    def run(app)
+    def run(apps)
       loop do
-        tick(app)
+        tick(apps)
         sleep settings.service.polling_interval
       end
     end
 
-    def tick(app)           
+    def tick(apps)           
       mailer.messages.each do |request|
-        log("REQUEST from #{request.from} to #{request.to}. "+
-            "Subject: #{request.subject.inspect}")
-        
+      
         response = mailer.new_message(:to   => request.from, 
                                       :from => settings.service.default_sender)
+        Array(apps).each do |app|
+          
+          begin
+            app.call(:request  => request, 
+                     :response => response, 
+                     :settings => settings)
+          rescue StandardError => e
+            debug("ERROR: #{e.inspect}\n"+e.backtrace.join("\n  "))
 
-        begin
-          app.call(:request  => request, 
-                   :response => response, 
-                   :settings => settings)
-        rescue StandardError => e
-          log("ERROR: #{e.inspect}\n"+e.backtrace.join("\n  "))
-
-          if settings.service.raise_exceptions
-            raise
-          else
-            next
+            if settings.service.raise_exceptions
+              raise
+            else
+              next    # next app
+              # alternatively, break and go to next message without delivery
+              #   response.perform_deliveries = false
+              #   break
+            end
           end
+
         end
-
+        
         response.deliver
-
-        log("RESPONSE from #{response.from} to #{response.to}. "+
-           "Subject: #{response.subject.inspect}, "+
-           "Bcc: #{response.bcc.inspect}, "+
-           "Reply To: #{response.reply_to.inspect}")
+        
       end
     end
 
 
     private
 
-    def log(message)
-      STDERR.puts("#{message}\n\n") if settings.service.debug_mode
+    def debug(message)
+      STDERR.puts("#{message}\n\n") if settings.service.debug_mode || $DEBUG
     end
   end
 end
