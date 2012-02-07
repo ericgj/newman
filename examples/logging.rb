@@ -1,38 +1,42 @@
-require 'logger'
 require_relative "example_helper"
 
 module Newman
   module Examples
-
-    module Logger
-      def logger(io=nil, *args, &config)
-        if io
-          @logger = ::Logger.new(io, *args)
-        else
-          @logger ||= logger(STDERR)
+    
+    class Logger
+        
+      attr_accessor :logger,   :log_request, :log_response,
+                    :settings, :request,     :response
+      
+      def initialize(logger, opts={})
+        self.logger = logger
+        self.log_request =  !!opts[:log_request]
+        self.log_response = !!opts[:log_response]
+      end
+      
+      def call(params)
+        self.settings = params.fetch(:settings)
+        self.request  = params.fetch(:request)
+        self.response = params.fetch(:response)
+        
+        log_email("REQUEST", request)   if log_request
+        log_email("RESPONSE", response) if log_response
+      end
+      
+      def log_email(prefix, email)
+        logger.debug('SETTINGS') { settings  }
+        logger.debug(prefix)     { "\n#{email}"   }
+        logger.info(prefix)      { summary(email) }
+      end
+      
+      def summary(email)
+        {}.tap do |hash|
+          %w[from to bcc subject reply_to].each do |fld| 
+            hash[fld] = email.send(fld)
+          end
         end
-        block_given? ? @logger.tap(&config) : @logger
       end
-    end
-    
-    # for lack of a controller plugin model, this ugliness..
-    # could we simply put logger method directly in Controller instead,
-    # it's probably generally useful to have it for many callbacks
-    Newman::Controller.send(:include, Logger)
-    
-    RequestLogger = Newman::Application.new do
-      default do
-        # mail.to_s returns the entire email as a string
-        # perhaps instead it should log a one-line summary at :info level,
-        # and the whole email at :debug level
-        logger.info "REQUEST:\n #{request}"
-      end      
-    end
-    
-    ResponseLogger = Newman::Application.new do
-      default do
-        logger.info "RESPONSE:\n #{response}"
-      end
+      
     end
     
     Echo = Newman::Application.new do
@@ -46,10 +50,17 @@ end
 
 
 if __FILE__ == $PROGRAM_NAME
-  Newman::Server.simple( [ Newman::Examples::RequestLogger,
-                           Newman::Examples::Echo,
-                           Newman::Examples::ResponseLogger
-                         ], 
-                         "config/environment.rb"
-                       )
+
+  require 'logger'
+  logger = ::Logger.new(STDERR)
+  logger.level = ::Logger::Severity::DEBUG
+  
+  Newman::Server.simple( 
+    [ Newman::Examples::Logger.new(logger, :log_request  => true),
+      Newman::Examples::Echo,
+      Newman::Examples::Logger.new(logger, :log_response => true)
+    ], 
+    "config/environment.rb"
+  )
+  
 end

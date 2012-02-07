@@ -15,6 +15,13 @@ module Newman
       eval(File.read(filename), binding)
     end
 
+    def to_s
+      {}.tap do |hash| 
+        [:imap, :smtp, :service, :application].each do |key|
+          hash[key] = self.send(key).marshal_dump
+        end
+      end
+    end
 
     attr_accessor :imap, :smtp, :service, :application
   end
